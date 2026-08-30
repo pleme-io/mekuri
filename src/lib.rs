@@ -121,6 +121,10 @@
 #![forbid(unsafe_code)]
 #![no_std]
 
+/// May a target be partially painted? See the module docs — moved here from
+/// `garasu` so a CPU compositor can ask it without acquiring a GPU stack.
+pub mod kentou;
+
 extern crate alloc;
 
 use alloc::sync::Arc;
@@ -489,9 +493,7 @@ mod tests {
         for _ in 0..1000 {
             l.mark(Why::Commit);
         }
-        let Verdict::Draw(p) = g.open() else {
-            panic!()
-        };
+        let Verdict::Draw(p) = g.open() else { panic!() };
         assert_eq!(p.causes(), alloc::vec![Why::Commit]);
         p.presented();
         assert!(matches!(g.open(), Verdict::Skip));
@@ -503,9 +505,7 @@ mod tests {
         let l = g.ledger();
         l.mark(Why::Clock);
         l.mark(Why::Commit);
-        let Verdict::Draw(p) = g.open() else {
-            panic!()
-        };
+        let Verdict::Draw(p) = g.open() else { panic!() };
         // Order follows Cause::all(), not mark order — stable and testable.
         assert_eq!(p.causes(), alloc::vec![Why::Commit, Why::Clock]);
         assert!(p.caused_by(Why::Clock));
@@ -517,9 +517,7 @@ mod tests {
     fn an_abandoned_frame_stays_owed() {
         let mut g: Gate<Why> = Gate::new();
         g.ledger().mark(Why::Commit);
-        let Verdict::Draw(p) = g.open() else {
-            panic!()
-        };
+        let Verdict::Draw(p) = g.open() else { panic!() };
         p.abandoned();
         let Verdict::Draw(p2) = g.open() else {
             panic!("an abandoned frame is still owed — this is the frozen-screen guard")
@@ -533,9 +531,7 @@ mod tests {
         let mut g: Gate<Why> = Gate::new();
         g.ledger().mark(Why::Pointer);
         {
-            let Verdict::Draw(p) = g.open() else {
-                panic!()
-            };
+            let Verdict::Draw(p) = g.open() else { panic!() };
             drop(p); // an early `?` return, a panic-free error path
         }
         assert!(
@@ -553,9 +549,7 @@ mod tests {
         let mut g: Gate<Why> = Gate::new();
         let l = g.ledger();
         l.mark(Why::Commit);
-        let Verdict::Draw(p) = g.open() else {
-            panic!()
-        };
+        let Verdict::Draw(p) = g.open() else { panic!() };
         l.mark(Why::Pointer); // arrives mid-composite
         p.presented();
         let Verdict::Draw(p2) = g.open() else {
@@ -569,9 +563,7 @@ mod tests {
     fn spend_presents_on_ok_and_drains() {
         let mut g: Gate<Why> = Gate::new();
         g.mark(Why::Commit);
-        let Verdict::Draw(p) = g.open() else {
-            panic!()
-        };
+        let Verdict::Draw(p) = g.open() else { panic!() };
         let out: Result<u8, ()> = p.spend(|causes| {
             assert_eq!(causes, [Why::Commit]);
             Ok(7)
@@ -586,9 +578,7 @@ mod tests {
         // consume the reason the frame was owed, or the screen stays stale.
         let mut g: Gate<Why> = Gate::new();
         g.mark(Why::Commit);
-        let Verdict::Draw(p) = g.open() else {
-            panic!()
-        };
+        let Verdict::Draw(p) = g.open() else { panic!() };
         let out: Result<(), &str> = p.spend(|_| Err("flip refused"));
         assert_eq!(out, Err("flip refused"));
         let Verdict::Draw(p2) = g.open() else {
