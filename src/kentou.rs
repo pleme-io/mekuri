@@ -270,6 +270,7 @@ impl Target<Unknown> {
     /// **The only route from `Unknown` to `Known`**, and it is a route through
     /// a full paint — which is exactly the honest price. After a clear the
     /// contents are known because we just wrote all of them.
+    #[must_use]
     pub fn adopt_by_clearing(self, to: Revision) -> Target<Known> {
         Target {
             width: self.width,
@@ -301,6 +302,16 @@ impl Target<Known> {
     ///
     /// Even here it can be refused, because knowing the target's revision is
     /// not the same as the damage matching it.
+    /// # Errors
+    ///
+    /// [`Coverage::StaleBaseline`] when the damage was computed against an
+    /// older revision than this target holds — the frames between are
+    /// unaccounted for, and painting only this damage would leave them
+    /// showing. [`Coverage::OutOfBounds`] when the region does not fit.
+    ///
+    /// ★ Both are REFUSALS, not warnings. A partial paint on either footing is
+    /// the stale-pixel defect, so the only sound answers are "paint it" and
+    /// "you may not".
     pub fn load_preserving(&mut self, damage: &Damage) -> Result<Painted, Coverage> {
         if !damage.region.fits_within(self.width, self.height) {
             return Err(Coverage::OutOfBounds {
@@ -349,6 +360,31 @@ impl Painted {
         self.region
     }
 }
+
+impl core::fmt::Display for Coverage {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::StaleBaseline {
+                damage_base,
+                target,
+            } => write!(
+                f,
+                "damage is relative to revision {damage_base}, but this target \
+                 holds revision {target}; the frames between are unaccounted for"
+            ),
+            Self::OutOfBounds {
+                region,
+                width,
+                height,
+            } => write!(
+                f,
+                "damage region {region:?} does not fit within {width}x{height}"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for Coverage {}
 
 #[cfg(test)]
 mod tests {
@@ -489,28 +525,3 @@ mod tests {
         assert_eq!(u.region().height, 15);
     }
 }
-
-impl core::fmt::Display for Coverage {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::StaleBaseline {
-                damage_base,
-                target,
-            } => write!(
-                f,
-                "damage is relative to revision {damage_base}, but this target \
-                 holds revision {target}; the frames between are unaccounted for"
-            ),
-            Self::OutOfBounds {
-                region,
-                width,
-                height,
-            } => write!(
-                f,
-                "damage region {region:?} does not fit within {width}x{height}"
-            ),
-        }
-    }
-}
-
-impl core::error::Error for Coverage {}
